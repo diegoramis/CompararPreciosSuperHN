@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Comparador de Precios Honduras</title>
+  <meta name="description" content="Escanea códigos de barras y compara precios en Walmart, Paiz y La Colonia en Honduras sin guardar datos." />
+  <script src="https://unpkg.com/@zxing/library@latest"></script>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --panel: rgba(255,255,255,0.08);
+      --panel-strong: rgba(255,255,255,0.12);
+      --border: rgba(255,255,255,0.14);
+      --text: #eef2ff;
+      --muted: #b9c3e0;
+      --primary: #5eead4;
+      --primary-2: #60a5fa;
+      --danger: #fb7185;
+      --success: #34d399;
+      --warning: #fbbf24;
+      --shadow: 0 18px 50px rgba(0,0,0,.28);
+      --radius: 22px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(96,165,250,.20), transparent 30%),
+        radial-gradient(circle at top right, rgba(94,234,212,.16), transparent 28%),
+        linear-gradient(180deg, #07101d 0%, #0b1220 42%, #111827 100%);
+      min-height: 100vh;
+    }
+
+    .wrap {
+      width: min(1180px, calc(100% - 28px));
+      margin: 0 auto;
+      padding: 28px 0 40px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.15fr .85fr;
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .card {
+      background: var(--panel);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .hero-main {
+      padding: 28px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .02em;
+      color: #d1fae5;
+      background: rgba(16,185,129,.14);
+      border: 1px solid rgba(16,185,129,.24);
+      margin-bottom: 14px;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: clamp(2rem, 3.7vw, 3.1rem);
+      line-height: 1.04;
+      letter-spacing: -.03em;
+    }
+
+    .lead {
+      margin: 0;
+      color: var(--muted);
+      font-size: 1rem;
+      line-height: 1.65;
+      max-width: 60ch;
+    }
+
+    .mini-stats {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 22px;
+    }
+
+    .stat {
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.09);
+      border-radius: 18px;
+      padding: 16px;
+    }
+
+    .stat strong {
+      display: block;
+      font-size: 1.15rem;
+      margin-bottom: 4px;
+    }
+
+    .stat span {
+      color: var(--muted);
+      font-size: .92rem;
+    }
+
+    .hero-side {
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .scan-box {
+      position: relative;
+      overflow: hidden;
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,.12);
+      background: #020617;
+      aspect-ratio: 16 / 10;
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      background: #000;
+    }
+
+    .scan-overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(180deg, rgba(0,0,0,.06), rgba(0,0,0,.12));
+    }
+
+    .scan-frame {
+      width: 78%;
+      height: 34%;
+      border: 2px solid rgba(94,234,212,.95);
+      border-radius: 16px;
+      box-shadow: 0 0 0 9999px rgba(0,0,0,.22);
+      position: relative;
+    }
+
+    .scan-frame::after {
+      content: "";
+      position: absolute;
+      left: 8%;
+      right: 8%;
+      top: 50%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, #5eead4, transparent);
+      box-shadow: 0 0 12px #5eead4;
+      animation: scanline 2.4s linear infinite;
+    }
+
+    @keyframes scanline {
+      0% { transform: translateY(-42px); opacity: .35; }
+      50% { opacity: 1; }
+      100% { transform: translateY(42px); opacity: .35; }
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    button, .btn-link {
+      appearance: none;
+      border: 0;
+      border-radius: 14px;
+      padding: 12px 16px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform .14s ease, opacity .14s ease, background .14s ease;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 46px;
+    }
+
+    button:hover, .btn-link:hover { transform: translateY(-1px); }
+    button:active, .btn-link:active { transform: translateY(0); }
+
+    .btn-primary {
+      color: #052e2b;
+      background: linear-gradient(135deg, var(--primary), #99f6e4);
+    }
+
+    .btn-secondary {
+      color: var(--text);
+      background: rgba(255,255,255,.07);
+      border: 1px solid rgba(255,255,255,.1);
+    }
+
+    .btn-dark {
+      color: #dbeafe;
+      background: linear-gradient(135deg, #1d4ed8, #0f172a);
+      border: 1px solid rgba(96,165,250,.25);
+    }
+
+    .section {
+      margin-top: 20px;
+      padding: 22px;
+    }
+
+    .top-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 18px;
+    }
+
+    .manual-row {
+      display: grid;
+      grid-template-columns: 1.2fr .8fr .8fr;
+      gap: 14px;
+      margin-top: 14px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      color: #dbe7ff;
+      font-size: .92rem;
+      font-weight: 600;
+    }
+
+    input {
+      width: 100%;
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.06);
+      color: white;
+      border-radius: 14px;
+      padding: 14px 14px;
+      font-size: 1rem;
+      outline: none;
+    }
+
+    input::placeholder { color: #9fb0d8; }
+    input:focus { border-color: rgba(94,234,212,.7); box-shadow: 0 0 0 4px rgba(94,234,212,.12); }
+
+    .status-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 13px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.1);
+      color: #d8e4ff;
+      font-size: .92rem;
+    }
+
+    .table-wrap {
+      overflow: auto;
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,.1);
+      background: rgba(255,255,255,.04);
+      margin-top: 16px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 840px;
+    }
+
+    th, td {
+      padding: 16px 14px;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      text-align: left;
+      vertical-align: middle;
+    }
+
+    th {
+      color: #dbeafe;
+      font-size: .9rem;
+      background: rgba(255,255,255,.04);
+      position: sticky;
+      top: 0;
+      backdrop-filter: blur(10px);
+    }
+
+    td { color: #eef2ff; }
+
+    .store-name {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      display: inline-block;
+    }
+
+    .walmart { background: #facc15; }
+    .paiz { background: #60a5fa; }
+    .colonia { background: #f87171; }
+    .lowest { background: #34d399; }
+
+    .price-input {
+      max-width: 160px;
+    }
+
+    .price-cell {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .value-tag {
+      display: inline-block;
+      padding: 8px 10px;
+      border-radius: 12px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.09);
+      color: #e8f2ff;
+      font-weight: 700;
+    }
+
+    .best-box {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 16px;
+      margin-top: 18px;
+      padding: 18px;
+      border-radius: 18px;
+      background: linear-gradient(135deg, rgba(52,211,153,.12), rgba(96,165,250,.12));
+      border: 1px solid rgba(52,211,153,.18);
+    }
+
+    .best-box h3 {
+      margin: 0 0 6px;
+      font-size: 1.1rem;
+    }
+
+    .best-box p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .best-price {
+      font-size: clamp(1.3rem, 2.8vw, 2rem);
+      font-weight: 900;
+      color: #d1fae5;
+      text-align: right;
+    }
+
+    .tips {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0,1fr));
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .tip {
+      padding: 16px;
+      border-radius: 18px;
+      background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.09);
+    }
+
+    .tip strong {
+      display: block;
+      margin-bottom: 8px;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    .footer-note {
+      margin-top: 18px;
+      font-size: .9rem;
+      color: #b6c3df;
+      line-height: 1.6;
+    }
+
+    @media (max-width: 980px) {
+      .hero { grid-template-columns: 1fr; }
+      .manual-row { grid-template-columns: 1fr; }
+      .tips { grid-template-columns: 1fr; }
+      .best-box { grid-template-columns: 1fr; }
+      .best-price { text-align: left; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <div class="card hero-main">
+        <div class="badge">Escáner + comparación sin guardar datos</div>
+        <h1>Comparador de precios de supermercado en Honduras</h1>
+        <p class="lead">
+          Escanea un código de barras, busca el producto en <strong>Walmart</strong>, <strong>Paiz</strong> y <strong>La Colonia</strong>,
+          y compara los precios sin base de datos ni almacenamiento del historial.
+        </p>
+
+        <div class="mini-stats">
+          <div class="stat">
+            <strong>100% estático</strong>
+            <span>Ideal para GitHub Pages</span>
+          </div>
+          <div class="stat">
+            <strong>Sin guardar precios</strong>
+            <span>Solo comparación en pantalla</span>
+          </div>
+          <div class="stat">
+            <strong>Listo para móvil</strong>
+            <span>Escaneo con cámara</span>
+          </div>
+        </div>
+      </div>
+
+      <aside class="card hero-side">
+        <div class="scan-box">
+          <video id="video" playsinline muted></video>
+          <div class="scan-overlay">
+            <div class="scan-frame"></div>
+          </div>
+        </div>
+
+        <div class="controls">
+          <button id="startBtn" class="btn-primary">Iniciar cámara</button>
+          <button id="stopBtn" class="btn-secondary">Detener</button>
+          <button id="clearBtn" class="btn-secondary">Limpiar</button>
+        </div>
+
+        <div class="footer-note">
+          Esta versión abre búsquedas en sitios web de supermercados y te deja comparar precios en la tabla.
+          No almacena información y funciona bien como demo pública en GitHub Pages.
+        </div>
+      </aside>
+    </section>
+
+    <section class="card section top-grid">
+      <div>
+        <label for="barcodeInput">Código de barras</label>
+        <input id="barcodeInput" type="text" inputmode="numeric" placeholder="Ej. 7501000123456" />
+      </div>
+
+      <div class="manual-row">
+        <div>
+          <label for="productName">Nombre del producto</label>
+          <input id="productName" type="text" placeholder="Ej. Atún Bumble Bee en agua 3 pack" />
+        </div>
+        <div>
+          <label for="brandName">Marca</label>
+          <input id="brandName" type="text" placeholder="Ej. Bumble Bee" />
+        </div>
+        <div>
+          <label for="presentation">Presentación</label>
+          <input id="presentation" type="text" placeholder="Ej. 142 g" />
+        </div>
+      </div>
+
+      <div class="status-bar">
+        <div class="pill" id="scanStatus">Estado: esperando código</div>
+        <div class="pill" id="queryPreview">Búsqueda actual: —</div>
+      </div>
+    </section>
+
+    <section class="card section">
+      <h2 style="margin:0 0 8px;">Tabla comparativa</h2>
+      <p class="muted" style="margin:0; line-height:1.65;">
+        Presiona “Buscar” para abrir el supermercado correspondiente. Luego puedes escribir el precio visto en ese sitio para compararlo en esta página.
+        Todo se mantiene solo en tu navegador mientras la página está abierta.
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Supermercado</th>
+              <th>Búsqueda</th>
+              <th>Precio encontrado</th>
+              <th>Acción</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <div class="store-name"><span class="dot walmart"></span> Walmart</div>
+              </td>
+              <td><span class="value-tag" id="walmartSearchLabel">Sin código</span></td>
+              <td>
+                <div class="price-cell">
+                  <input id="walmartPrice" class="price-input" type="number" min="0" step="0.01" placeholder="Lempiras" />
+                  <span class="value-tag" id="walmartShown">—</span>
+                </div>
+              </td>
+              <td><a id="walmartLink" class="btn-link btn-dark" target="_blank" rel="noopener">Buscar</a></td>
+            </tr>
+            <tr>
+              <td>
+                <div class="store-name"><span class="dot paiz"></span> Paiz</div>
+              </td>
+              <td><span class="value-tag" id="paizSearchLabel">Sin código</span></td>
+              <td>
+                <div class="price-cell">
+                  <input id="paizPrice" class="price-input" type="number" min="0" step="0.01" placeholder="Lempiras" />
+                  <span class="value-tag" id="paizShown">—</span>
+                </div>
+              </td>
+              <td><a id="paizLink" class="btn-link btn-dark" target="_blank" rel="noopener">Buscar</a></td>
+            </tr>
+            <tr>
+              <td>
+                <div class="store-name"><span class="dot colonia"></span> La Colonia</div>
+              </td>
+              <td><span class="value-tag" id="coloniaSearchLabel">Sin código</span></td>
+              <td>
+                <div class="price-cell">
+                  <input id="coloniaPrice" class="price-input" type="number" min="0" step="0.01" placeholder="Lempiras" />
+                  <span class="value-tag" id="coloniaShown">—</span>
+                </div>
+              </td>
+              <td><a id="coloniaLink" class="btn-link btn-dark" target="_blank" rel="noopener">Buscar</a></td>
+            </tr>
+            <tr>
+              <td>
+                <div class="store-name"><span class="dot lowest"></span> Precio más bajo encontrado</div>
+              </td>
+              <td colspan="3">
+                <div class="best-box">
+                  <div>
+                    <h3 id="bestStoreText">Aún no hay comparación</h3>
+                    <p id="bestDetailText">Ingresa al menos un precio de Walmart, Paiz o La Colonia.</p>
+                  </div>
+                  <div class="best-price" id="bestPrice">—</div>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="tips">
+        <div class="tip">
+          <strong>1. Escanea</strong>
+          <span class="muted">Lee el EAN/UPC con la cámara o escríbelo manualmente.</span>
+        </div>
+        <div class="tip">
+          <strong>2. Busca</strong>
+          <span class="muted">Abre cada supermercado con el código o con el nombre del producto.</span>
+        </div>
+        <div class="tip">
+          <strong>3. Compara</strong>
+          <span class="muted">Escribe los precios vistos y la tabla marca el menor automáticamente.</span>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const codeReader = new ZXing.BrowserMultiFormatReader();
+    const video = document.getElementById('video');
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const clearBtn = document.getElementById('clearBtn');
+
+    const barcodeInput = document.getElementById('barcodeInput');
+    const productName = document.getElementById('productName');
+    const brandName = document.getElementById('brandName');
+    const presentation = document.getElementById('presentation');
+
+    const scanStatus = document.getElementById('scanStatus');
+    const queryPreview = document.getElementById('queryPreview');
+
+    const walmartLink = document.getElementById('walmartLink');
+    const paizLink = document.getElementById('paizLink');
+    const coloniaLink = document.getElementById('coloniaLink');
+
+    const walmartSearchLabel = document.getElementById('walmartSearchLabel');
+    const paizSearchLabel = document.getElementById('paizSearchLabel');
+    const coloniaSearchLabel = document.getElementById('coloniaSearchLabel');
+
+    const walmartPrice = document.getElementById('walmartPrice');
+    const paizPrice = document.getElementById('paizPrice');
+    const coloniaPrice = document.getElementById('coloniaPrice');
+
+    const walmartShown = document.getElementById('walmartShown');
+    const paizShown = document.getElementById('paizShown');
+    const coloniaShown = document.getElementById('coloniaShown');
+
+    const bestStoreText = document.getElementById('bestStoreText');
+    const bestDetailText = document.getElementById('bestDetailText');
+    const bestPrice = document.getElementById('bestPrice');
+
+    function formatLempiras(value) {
+      return new Intl.NumberFormat('es-HN', {
+        style: 'currency',
+        currency: 'HNL',
+        minimumFractionDigits: 2
+      }).format(value);
+    }
+
+    function getSearchTerm() {
+      const code = barcodeInput.value.trim();
+      const name = productName.value.trim();
+      const brand = brandName.value.trim();
+      const size = presentation.value.trim();
+
+      if (code) return code;
+      return [name, brand, size].filter(Boolean).join(' ').trim();
+    }
+
+    function updateSearchLinks() {
+      const term = getSearchTerm();
+      const encoded = encodeURIComponent(term);
+      const searchLabel = term || 'Sin código';
+
+      walmartLink.href = term
+        ? `https://www.walmart.com.hn/catalogsearch/result/?q=${encoded}`
+        : 'https://www.walmart.com.hn/';
+
+      paizLink.href = term
+        ? `https://www.paiz.com.hn/catalogsearch/result/?q=${encoded}`
+        : 'https://www.paiz.com.hn/';
+
+      coloniaLink.href = term
+        ? `https://www.google.com/search?q=${encodeURIComponent('site:lacolonia.com ' + term)}`
+        : 'https://www.lacolonia.com/';
+
+      walmartSearchLabel.textContent = searchLabel;
+      paizSearchLabel.textContent = searchLabel;
+      coloniaSearchLabel.textContent = searchLabel;
+      queryPreview.textContent = `Búsqueda actual: ${term || '—'}`;
+    }
+
+    function updateShownPrices() {
+      walmartShown.textContent = walmartPrice.value ? formatLempiras(Number(walmartPrice.value)) : '—';
+      paizShown.textContent = paizPrice.value ? formatLempiras(Number(paizPrice.value)) : '—';
+      coloniaShown.textContent = coloniaPrice.value ? formatLempiras(Number(coloniaPrice.value)) : '—';
+    }
+
+    function computeLowest() {
+      const entries = [
+        { name: 'Walmart', value: Number(walmartPrice.value) },
+        { name: 'Paiz', value: Number(paizPrice.value) },
+        { name: 'La Colonia', value: Number(coloniaPrice.value) }
+      ].filter(item => Number.isFinite(item.value) && item.value > 0);
+
+      if (!entries.length) {
+        bestStoreText.textContent = 'Aún no hay comparación';
+        bestDetailText.textContent = 'Ingresa al menos un precio de Walmart, Paiz o La Colonia.';
+        bestPrice.textContent = '—';
+        return;
+      }
+
+      const min = entries.reduce((a, b) => a.value <= b.value ? a : b);
+      const ordered = [...entries].sort((a, b) => a.value - b.value);
+      const detail = ordered.map(x => `${x.name}: ${formatLempiras(x.value)}`).join(' · ');
+
+      bestStoreText.textContent = `El precio más bajo está en ${min.name}`;
+      bestDetailText.textContent = detail;
+      bestPrice.textContent = formatLempiras(min.value);
+    }
+
+    function refreshAll() {
+      updateSearchLinks();
+      updateShownPrices();
+      computeLowest();
+    }
+
+    function setBarcode(text) {
+      barcodeInput.value = text;
+      scanStatus.textContent = `Estado: código detectado ${text}`;
+      refreshAll();
+    }
+
+    async function startScanner() {
+      try {
+        const devices = await codeReader.listVideoInputDevices();
+        if (!devices.length) {
+          scanStatus.textContent = 'Estado: no se encontró cámara';
+          alert('No se encontró cámara disponible en este dispositivo.');
+          return;
+        }
+
+        const preferred = devices.find(d => /back|rear|environment/i.test(d.label)) || devices[0];
+        scanStatus.textContent = 'Estado: escaneando...';
+
+        await codeReader.decodeFromVideoDevice(preferred.deviceId, video, (result, err) => {
+          if (result) setBarcode(result.getText());
+        });
+      } catch (error) {
+        console.error(error);
+        scanStatus.textContent = 'Estado: no se pudo iniciar la cámara';
+        alert('No se pudo iniciar la cámara. Verifica permisos del navegador.');
+      }
+    }
+
+    function stopScanner() {
+      try {
+        codeReader.reset();
+        scanStatus.textContent = 'Estado: cámara detenida';
+      } catch (error) {
+        console.error(error);
+      }
+    }
+
+    function clearAll() {
+      stopScanner();
+      barcodeInput.value = '';
+      productName.value = '';
+      brandName.value = '';
+      presentation.value = '';
+      walmartPrice.value = '';
+      paizPrice.value = '';
+      coloniaPrice.value = '';
+      scanStatus.textContent = 'Estado: esperando código';
+      refreshAll();
+    }
+
+    startBtn.addEventListener('click', startScanner);
+    stopBtn.addEventListener('click', stopScanner);
+    clearBtn.addEventListener('click', clearAll);
+
+    [barcodeInput, productName, brandName, presentation].forEach(el => {
+      el.addEventListener('input', refreshAll);
+    });
+
+    [walmartPrice, paizPrice, coloniaPrice].forEach(el => {
+      el.addEventListener('input', () => {
+        updateShownPrices();
+        computeLowest();
+      });
+    });
+
+    refreshAll();
+  </script>
+</body>
+</html>
